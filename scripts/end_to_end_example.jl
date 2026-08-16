@@ -27,7 +27,7 @@ mktempdir() do dir
     for hit in hits
         println(
             "  ", hit.query, " vs ", hit.target,
-            ": ", round(100 * hit.fident; digits=1), "% identity over ",
+            ": ", round(100 * hit.fident; digits = 1), "% identity over ",
             hit.alnlen, " residues (E-value ", hit.evalue, ")",
         )
     end
