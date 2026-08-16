@@ -21,12 +21,12 @@ Every `foldseek easy-search` CLI option is available as a keyword argument;
 run `foldseek"easy-search -h"` for the full, version-specific list.
 """
 function easy_search(
-    queryfiles::AbstractVector{<:AbstractString},
-    target::AbstractString,
-    alignmentfile::AbstractString,
-    tmpdir::AbstractString;
-    kwargs...,
-)
+        queryfiles::AbstractVector{<:AbstractString},
+        target::AbstractString,
+        alignmentfile::AbstractString,
+        tmpdir::AbstractString;
+        kwargs...,
+    )
     return foldseek("easy-search", String.(queryfiles)..., target, alignmentfile, tmpdir; kwargs...)
 end
 easy_search(queryfile::AbstractString, target::AbstractString, alignmentfile::AbstractString, tmpdir::AbstractString; kwargs...) =
@@ -42,8 +42,8 @@ paths. Every `foldseek easy-cluster` CLI option is available as a keyword
 argument; run `foldseek"easy-cluster -h"` for the full, version-specific list.
 """
 function easy_cluster(
-    queryfiles::AbstractVector{<:AbstractString}, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...
-)
+        queryfiles::AbstractVector{<:AbstractString}, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...
+    )
     return foldseek("easy-cluster", String.(queryfiles)..., clusterprefix, tmpdir; kwargs...)
 end
 easy_cluster(queryfile::AbstractString, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...) =
@@ -75,8 +75,8 @@ argument; run `foldseek"easy-multimercluster -h"` for the full,
 version-specific list.
 """
 function easy_multimercluster(
-    queryfiles::AbstractVector{<:AbstractString}, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...
-)
+        queryfiles::AbstractVector{<:AbstractString}, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...
+    )
     return foldseek("easy-multimercluster", String.(queryfiles)..., clusterprefix, tmpdir; kwargs...)
 end
 easy_multimercluster(queryfile::AbstractString, clusterprefix::AbstractString, tmpdir::AbstractString; kwargs...) =
@@ -94,8 +94,8 @@ available as a keyword argument; run `foldseek"easy-multimersearch -h"` for
 the full, version-specific list.
 """
 function easy_multimersearch(
-    queryfiles::AbstractVector{<:AbstractString}, target::AbstractString, outputfile::AbstractString, tmpdir::AbstractString; kwargs...
-)
+        queryfiles::AbstractVector{<:AbstractString}, target::AbstractString, outputfile::AbstractString, tmpdir::AbstractString; kwargs...
+    )
     return foldseek("easy-multimersearch", String.(queryfiles)..., target, outputfile, tmpdir; kwargs...)
 end
 easy_multimersearch(queryfile::AbstractString, target::AbstractString, outputfile::AbstractString, tmpdir::AbstractString; kwargs...) =

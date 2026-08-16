@@ -22,7 +22,7 @@ using Bzip2_jll: Bzip2_jll
 using LLVMOpenMP_jll: LLVMOpenMP_jll
 using Scratch: @get_scratch!
 
-const _macos_shadow_exe = Ref{Union{Nothing,String}}(nothing)
+const _macos_shadow_exe = Ref{Union{Nothing, String}}(nothing)
 
 function _macos_shadow_executable()
     cached = _macos_shadow_exe[]
@@ -38,7 +38,7 @@ function _macos_shadow_executable()
     if !isfile(exe) || !isfile(marker) || read(marker, String) != source
         mkpath(bindir)
         mkpath(libdir)
-        cp(source, exe; force=true)
+        cp(source, exe; force = true)
         chmod(exe, 0o755)
         # Target names are the exact `@rpath/...` dependency names `foldseek`
         # declares (see `otool -L`), which do not always match the on-disk
@@ -46,12 +46,12 @@ function _macos_shadow_executable()
         # provides `libz.1.3.1.dylib`, but the binary looks specifically for
         # `libz.1.dylib`) — dyld resolves by exact name, not by prefix match.
         for (target_name, libpath) in (
-            "libz.1.dylib" => Zlib_jll.libz_path,
-            "libbz2.1.0.dylib" => Bzip2_jll.libbzip2_path,
-            "libomp.dylib" => LLVMOpenMP_jll.libomp_path,
-        )
+                "libz.1.dylib" => Zlib_jll.libz_path,
+                "libbz2.1.0.dylib" => Bzip2_jll.libbzip2_path,
+                "libomp.dylib" => LLVMOpenMP_jll.libomp_path,
+            )
             target = joinpath(libdir, target_name)
-            ispath(target) && rm(target; force=true)
+            ispath(target) && rm(target; force = true)
             symlink(libpath, target)
         end
         write(marker, source)

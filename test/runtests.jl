@@ -14,14 +14,14 @@ using Test
         # Bool kwargs must become an explicit 0/1, and `nothing` must omit the
         # flag entirely — both surface only through what actually reaches the
         # CLI, so assert on the stderr message a bad/omitted flag provokes.
-        @test_throws "Not enough input paths" foldseek("createdb"; gpu=false)
-        @test_throws "Unrecognized parameter" foldseek("createdb", "a", "b"; not_a_real_flag=1)
-        @test foldseek("version"; verbosity=nothing) isa Base.Process
+        @test_throws "Not enough input paths" foldseek("createdb"; gpu = false)
+        @test_throws "Unrecognized parameter" foldseek("createdb", "a", "b"; not_a_real_flag = 1)
+        @test foldseek("version"; verbosity = nothing) isa Base.Process
 
         # A single-character keyword name must become a short `-x` flag, not
         # `--x` — some options (e.g. structurealign's `-a`) have no long-form
         # equivalent at all, so this is the only way to reach them.
-        @test foldseek("version"; v=1) isa Base.Process
+        @test foldseek("version"; v = 1) isa Base.Process
     end
 
     @testset "@foldseek_str" begin
@@ -56,15 +56,15 @@ using Test
         # CLI with the right subcommand name and the right positional arg
         # count — if either were wrong, foldseek would report a path-count
         # error instead of ever reaching flag validation.
-        @test_throws "Unrecognized parameter" easy_search("a", "b", "c", "d"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_search(["a", "b"], "c", "d", "e"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_cluster("a", "b", "c"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_cluster(["a", "b"], "c", "d"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_rbh("a", "b", "c", "d"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_multimercluster("a", "b", "c"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_multimercluster(["a", "b"], "c", "d"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_multimersearch("a", "b", "c", "d"; bad_flag=1)
-        @test_throws "Unrecognized parameter" easy_multimersearch(["a", "b"], "c", "d", "e"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_search("a", "b", "c", "d"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_search(["a", "b"], "c", "d", "e"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_cluster("a", "b", "c"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_cluster(["a", "b"], "c", "d"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_rbh("a", "b", "c", "d"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_multimercluster("a", "b", "c"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_multimercluster(["a", "b"], "c", "d"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_multimersearch("a", "b", "c", "d"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" easy_multimersearch(["a", "b"], "c", "d", "e"; bad_flag = 1)
     end
 
     @testset "main-workflow commands" begin
@@ -129,7 +129,7 @@ using Test
         # rbh isn't individually exercised with a real run in this test
         # suite; flag validation still confirms subcommand routing and
         # positional arg shape, as above.
-        @test_throws "Unrecognized parameter" rbh("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" rbh("a", "b", "c", "d"; bad_flag = 1)
     end
 
     @testset "database-and-set commands" begin
@@ -151,9 +151,9 @@ using Test
         # appropriate to run in a test suite; createindex and
         # createclusearchdb aren't individually exercised with a real run
         # here. All three are tested via flag validation only, as above.
-        @test_throws "Unrecognized parameter" databases("a", "b", "c"; bad_flag=1)
-        @test_throws "Unrecognized parameter" createindex("a", "b"; bad_flag=1)
-        @test_throws "Unrecognized parameter" createclusearchdb("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" databases("a", "b", "c"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" createindex("a", "b"; bad_flag = 1)
+        @test_throws "Unrecognized parameter" createclusearchdb("a", "b", "c"; bad_flag = 1)
     end
 
     @testset "format-conversion commands" begin
@@ -179,7 +179,7 @@ using Test
             # and drive the returned NamedTuple's field names/order.
             custom = convertalis(
                 querydb, targetdb, alignmentdb, joinpath(dir, "result_custom.m8");
-                format_output="target,query,qlen",
+                format_output = "target,query,qlen",
             )
             @test keys(custom[1]) == (:target, :query, :qlen)
             @test custom[1].qlen isa Int
@@ -245,19 +245,19 @@ using Test
             # Backtrace (-a 1) is required before convertalis can read the
             # alignment back out, so each result is checked through it.
             tmdb = joinpath(dir, "tmDB")
-            tmalign(querydb, targetdb, prefilterdb, tmdb; a=true)
-            tmrows = convertalis(querydb, targetdb, tmdb, joinpath(dir, "tm.tsv"); format_output="query,target,alntmscore")
+            tmalign(querydb, targetdb, prefilterdb, tmdb; a = true)
+            tmrows = convertalis(querydb, targetdb, tmdb, joinpath(dir, "tm.tsv"); format_output = "query,target,alntmscore")
             @test length(tmrows) == 4
             @test all(row -> row.alntmscore > 0.9, tmrows)
 
             structuralndb = joinpath(dir, "structuralnDB")
-            structurealign(querydb, targetdb, prefilterdb, structuralndb; a=true)
+            structurealign(querydb, targetdb, prefilterdb, structuralndb; a = true)
             sarows = convertalis(querydb, targetdb, structuralndb, joinpath(dir, "sa.tsv"))
             @test length(sarows) == 4
             @test all(row -> row.fident > 0.9, sarows)
 
             srddb = joinpath(dir, "srdDB")
-            structurerescorediagonal(querydb, targetdb, prefilterdb, srddb; a=true)
+            structurerescorediagonal(querydb, targetdb, prefilterdb, srddb; a = true)
             srdrows = convertalis(querydb, targetdb, srddb, joinpath(dir, "srd.tsv"))
             @test length(srdrows) == 4
             @test all(row -> row.fident > 0.9, srdrows)
@@ -316,7 +316,7 @@ using Test
             @test isfile(expandeddb * ".index")
 
             expandedalndb = joinpath(dir, "expandedAlnDB")
-            structurealign(querydb, targetdb, expandeddb, expandedalndb; a=true)
+            structurealign(querydb, targetdb, expandeddb, expandedalndb; a = true)
             complexdb = joinpath(dir, "complexDB")
             scoremultimer(querydb, targetdb, expandedalndb, complexdb)
 
