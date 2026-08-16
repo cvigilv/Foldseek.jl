@@ -1,3 +1,15 @@
+"""
+Julia wrapper around the [Foldseek](https://github.com/steineggerlab/foldseek)
+structure-search executable, bundled via
+[Foldseek_jll](https://github.com/JuliaBinaryWrappers/Foldseek_jll.jl).
+
+[`foldseek`](@ref) and [`@foldseek_str`](@ref) run any `foldseek` command
+directly; every command `foldseek -h` prints also has a typed function
+(e.g. [`easy_search`](@ref), [`createdb`](@ref), [`search`](@ref)) whose
+positional arguments match the CLI's own usage line and whose remaining
+options are available as keyword arguments. See the README for the full
+command-to-function coverage table.
+"""
 module Foldseek
 
 using Foldseek_jll: Foldseek_jll

@@ -4,26 +4,25 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-010: alignment-clustering-profile-commands
-Added typed wrappers for the last 8 commands `foldseek -h` prints: `expandmultimer`, `tmalign`, `structurealign`, `structurerescorediagonal`, `aln2tmscore`, `scoremultimer`, `clust`, `result2profile`. These operate on intermediate pipeline databases (a prefilter or alignment result), not raw structure DBs, so testing them meant building that input directly through the untyped `prefilter` command via the dispatcher. All 8 turned out to be direct modules (no internal shell-script re-exec) and are fully tested end to end.
+CHUNK-011: public-api-and-docs
+This was an audit-and-consolidate chunk, not new implementation: every exported symbol already had a docstring from the chunk that introduced it (verified programmatically across all 29 exported names). Added a module-level docstring to `src/Foldseek.jl` and rewrote `README.md` from a two-line stub into a real README with installation instructions, a quick-start example, and a full 27-row command-coverage table (one row per `foldseek -h` command, grouped exactly as `-h` groups them) plus a note on the `foldseek"..."` passthrough for the ~150 commands with no typed wrapper.
 
 ## Key decisions made
-- Discovered and fixed a real dispatcher gap: `structurealign`'s `-a` (add backtrace) flag has no `--long-form` equivalent, so the CHUNK-003 dispatcher (which only ever emitted `--flag`) couldn't reach it. Fixed `foldseek(subcommand, args...; kwargs...)` so a single-character keyword name now maps to a short `-x` flag instead of `--x` — matches Foldseek's own convention that every short option is exactly one letter. Backward compatible; added a dedicated test (`foldseek("version"; v=1)`).
-- `tmalign`/`structurealign`/`structurerescorediagonal` are verified via `convertalis`-parsed rows (real TM-score/fident values > 0.9 on 1TIM/8TIM). `clust` is verified via the hidden `createtsv` command, confirming all 4 chains land in one cluster. `expandmultimer`/`scoremultimer` are verified by hand-reconstructing the internal pipeline `multimersearch` runs automatically, then checking the resulting `createmultimerreport` matches `multimersearch`'s own end-to-end result. `aln2tmscore`/`result2profile` are checked by file existence only — their output DB types aren't `convertalis`-readable.
-- All 27 `foldseek -h` commands now have typed wrappers with real end-to-end test coverage (or file-existence coverage where deeper parsing isn't applicable) — no command in this package is left on flag-validation-only testing except `rbh`, `createindex`, `createclusearchdb`, `databases` (the last genuinely can't be run in a test suite; the others have no fixture-driven reason identified yet to upgrade them).
+- Confirmed (not just assumed) that a bare `@doc Foldseek` returning `nothing` in `julia -e` batch mode is a known Julia doc-system quirk with self-referencing module bindings, not a real problem with the module docstring — the docstring is correctly stored (`Docs.meta(Foldseek)` has the `Foldseek.Foldseek` binding, and `@doc Foldseek.Foldseek` resolves it directly). Left as standard practice; did not work around it.
+- README table entries use plain `` `code` `` spans for function names, not `[`name`](@ref)`-style links — those only resolve under Documenter.jl (not set up for this project), so in GitHub's plain markdown rendering they'd show as broken links. `(@ref)` links remain fine inside docstrings themselves (existing convention throughout the codebase; Julia's REPL help mode renders that markdown reasonably without Documenter).
 
 ## State of the codebase
-- Files created or modified: `src/alignment_commands.jl` (new), `src/Foldseek.jl` (added the `include`; fixed the dispatcher's short-flag handling), `test/runtests.jl` (new "alignment/clustering/profile commands" testset, plus a short-flag dispatcher test), `ANALYSIS_PLAN.md`.
+- Files created or modified: `src/Foldseek.jl` (module docstring only, no behavior change), `README.md` (full rewrite), `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 59/59 pass.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 59/59 pass (unchanged from CHUNK-010, this chunk touched no runtime code).
 - Entry point(s): none new.
 - Known issues: none.
-- Committed and pushed: yes, both CHUNK-009 (+ the heteromeric-fixture addendum) and CHUNK-010 are on `origin/main`.
+- Committed and pushed: not yet as of writing this handoff — do so as part of wrapping up this chunk, same as CHUNK-009/010.
 
 ## Next chunk
-CHUNK-011: public-api-and-docs. Consolidate module exports, write docstrings for every exported symbol (including `@foldseek_str`), and produce the coverage table (README or `docs/`) mapping each `foldseek -h` command to its Julia function, with a note documenting `foldseek"..."` as the path to every other command. Every function already has a docstring from its own chunk — this chunk is about auditing them for completeness/consistency and building the coverage table, not writing from scratch.
+CHUNK-012: end-to-end-example. An example script under `scripts/` reproducing a full workflow (create DB → search → convert results) end-to-end using the CHUNK-004 fixtures (1TIM/8TIM, or 4HHB/1Y8H if a multimer example reads better), demonstrating the wrapper is usable standalone without shelling out manually. This is the last chunk in the plan — once done, all chunks are `complete`.
 
 ## Watch out for
-- The user asked me to continue through the remaining chunks (CHUNK-010, 011, 012) autonomously without stopping for confirmation, and will review when they're back. Keep applying the plan's default off-piste stance (record adjacent findings in Open Questions rather than pausing) unless something is genuinely ambiguous or destructive.
-- Two Open Questions remain unresolved and don't block CHUNK-011/012: the upstream macOS libomp GitHub issue (drafted, not filed — needs sign-off) and the `search`/`cluster`/`rbh`/`clust` naming-collision risk (flagged, not acted on). Don't file the GitHub issue without explicit approval.
-- After CHUNK-011, CHUNK-012 (end-to-end-example script under `scripts/`) is the last chunk in the plan — once both are done, all chunks are `complete`.
+- The user asked (in the prior session) to continue through CHUNK-010/011/012 autonomously without stopping for confirmation, and will review when back. That instruction covers this remaining chunk too.
+- Two Open Questions remain unresolved and don't block CHUNK-012: the upstream macOS libomp GitHub issue (drafted, not filed — needs sign-off) and the `search`/`cluster`/`rbh`/`clust` naming-collision risk (flagged, not acted on). Don't file the GitHub issue without explicit approval.
+- Once CHUNK-012 is done and committed, all chunks in the plan are `complete` — say so plainly and suggest the user review the session log / git history rather than implying there's more plan work queued.

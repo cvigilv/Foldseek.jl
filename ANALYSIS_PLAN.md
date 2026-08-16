@@ -112,8 +112,9 @@ No figures/visualization for this plan — the project's outputs are code artifa
 
 ### CHUNK-011: public-api-and-docs
 - **Description**: Consolidate module exports, write docstrings for every exported symbol (including `@foldseek_str`), and produce the coverage table (README or `docs/`) mapping each `foldseek -h` command to its Julia function, with a note documenting `foldseek"..."` as the path to every other command.
+- **Status**: `complete`
 - **Depends on**: CHUNK-005, CHUNK-006, CHUNK-007, CHUNK-008, CHUNK-009, CHUNK-010
-- **Notes**:
+- **Notes**: Audited rather than rewritten — every exported symbol already had a docstring from its own chunk, verified programmatically (`haskey(Base.Docs.meta(Foldseek), Docs.Binding(Foldseek, name))` for all 29 exported names). Added a module-level docstring to `src/Foldseek.jl` (a docstring immediately before `module Foldseek`); confirmed it's correctly stored in the docs metadata (`Docs.meta(Foldseek)` has the `Foldseek.Foldseek` binding) even though bare `@doc Foldseek` returns `nothing` in non-interactive `julia -e` batch mode — a known Julia quirk with self-referencing module bindings outside the REPL's doc-system bootstrap, not a defect in the docstring itself. Rewrote `README.md` (previously a two-line stub) with installation, a quick-start example, and a full command coverage table — 27 rows, one per `foldseek -h` command, grouped exactly as `-h` itself groups them (cross-checked programmatically: the table's function names minus `foldseek`/`@foldseek_str` exactly equal `Foldseek`'s other exported names). Used plain `` `code` `` spans for function names in the README table rather than `[`name`](@ref)`-style links — those only resolve under Documenter.jl, which this project doesn't have set up (no `docs/` build), so they'd render as broken links in GitHub's plain markdown rendering; `(@ref)` links remain appropriate inside docstrings themselves (an established convention already used throughout this codebase, since Julia's REPL help mode renders that markdown reasonably even without Documenter).
 
 ### CHUNK-012: end-to-end-example
 - **Description**: An example script under `scripts/` reproducing a full workflow (create DB → search → convert results) end-to-end using the CHUNK-004 fixtures, demonstrating the wrapper is usable standalone without shelling out manually.
@@ -134,6 +135,7 @@ No figures/visualization for this plan — the project's outputs are code artifa
 - 2026-08-16 CHUNK-009 (format-conversion-commands) → next: CHUNK-010
 - 2026-08-16 heteromeric test-fixture addendum (cross-cutting, not a numbered chunk; user-requested) → next: CHUNK-010
 - 2026-08-16 CHUNK-010 (alignment-clustering-profile-commands) → next: CHUNK-011
+- 2026-08-16 CHUNK-011 (public-api-and-docs) → next: CHUNK-012
 
 ## Open Questions
 - File an upstream issue against `Foldseek_jll`/Yggdrasil (or `steineggerlab/foldseek` — needs a decision on which repo owns the fix) describing the macOS nested-subprocess `libomp.dylib` bug and its confirmed root cause (see the macOS libomp fix Working Knowledge entry). `src/macos_shadow_executable.jl` is a local workaround, not a substitute — every other macOS consumer of `Foldseek_jll` hits the same bug. Draft ready; awaiting approval on exact text and target repo before filing (never post to GitHub without explicit sign-off on the text).
