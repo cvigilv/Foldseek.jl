@@ -40,18 +40,24 @@ end
     foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)
 
 Run `foldseek subcommand args... --flag1 value1 --flag2 value2 ...`. Each
-keyword argument becomes a long-form CLI flag: underscores in the key become
-hyphens (`comp_bias_corr` → `--comp-bias-corr`), a `Bool` value becomes an
-explicit `"0"`/`"1"` (Foldseek's `BOOL`-typed options require a value; they
-are not bare presence/absence switches), and a value of `nothing` omits the
-flag entirely so typed wrappers can use `nothing` as an "unset" default.
+keyword argument becomes a CLI flag: a single-character key becomes a
+short flag (`a=true` → `-a 1`, matching Foldseek's own convention that every
+short option is exactly one letter — some, like `structurealign`'s `-a`,
+have no long-form equivalent), and any other key becomes a long-form flag
+with underscores turned into hyphens (`comp_bias_corr` → `--comp-bias-corr`).
+A `Bool` value becomes an explicit `"0"`/`"1"` (Foldseek's `BOOL`-typed
+options require a value; they are not bare presence/absence switches), and a
+value of `nothing` omits the flag entirely so typed wrappers can use
+`nothing` as an "unset" default.
 """
 function foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)
     parts = String[subcommand]
     append!(parts, String.(args))
     for (key, value) in pairs(kwargs)
         value === nothing && continue
-        push!(parts, "--" * replace(String(key), '_' => '-'))
+        keystr = String(key)
+        prefix = length(keystr) == 1 ? "-" : "--"
+        push!(parts, prefix * replace(keystr, '_' => '-'))
         push!(parts, flag_string(value))
     end
     return foldseek(Cmd(parts))
@@ -88,5 +94,6 @@ include("easy_workflows.jl")
 include("main_workflows.jl")
 include("database_commands.jl")
 include("format_conversion.jl")
+include("alignment_commands.jl")
 
 end

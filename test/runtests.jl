@@ -17,6 +17,11 @@ using Test
         @test_throws "Not enough input paths" foldseek("createdb"; gpu=false)
         @test_throws "Unrecognized parameter" foldseek("createdb", "a", "b"; not_a_real_flag=1)
         @test foldseek("version"; verbosity=nothing) isa Base.Process
+
+        # A single-character keyword name must become a short `-x` flag, not
+        # `--x` — some options (e.g. structurealign's `-a`) have no long-form
+        # equivalent at all, so this is the only way to reach them.
+        @test foldseek("version"; v=1) isa Base.Process
     end
 
     @testset "@foldseek_str" begin
@@ -214,6 +219,112 @@ using Test
             badfile = joinpath(dir, "bad.m8")
             write(badfile, "1\t2\t3\n")
             @test_throws "expected from format_output" Foldseek._convertalis_row(readline(badfile), [:a, :b])
+        end
+    end
+
+    @testset "alignment/clustering/profile commands" begin
+        fixture_dir = joinpath(@__DIR__, "data")
+
+        # tmalign, structurealign, structurerescorediagonal, aln2tmscore,
+        # clust, and result2profile all operate on a prefilter result rather
+        # than a raw structure DB; `prefilter` itself has no typed wrapper
+        # (it's one of the ~150 commands reachable only via
+        # foldseek(subcommand, args...) or foldseek"...", per the plan's
+        # scope decision), so it's built directly through the dispatcher.
+        mktempdir() do dir
+            querydb = joinpath(dir, "queryDB")
+            targetdb = joinpath(dir, "targetDB")
+            createdb(joinpath(fixture_dir, "1tim.pdb.gz"), querydb)
+            createdb(joinpath(fixture_dir, "8tim.pdb.gz"), targetdb)
+            prefilterdb = joinpath(dir, "prefilterDB")
+            foldseek("prefilter", querydb, targetdb, prefilterdb)
+
+            # `-a` has no long-form equivalent for these commands; a
+            # single-character keyword name is how the dispatcher spells a
+            # short flag (see foldseek(subcommand, args...; kwargs...)).
+            # Backtrace (-a 1) is required before convertalis can read the
+            # alignment back out, so each result is checked through it.
+            tmdb = joinpath(dir, "tmDB")
+            tmalign(querydb, targetdb, prefilterdb, tmdb; a=true)
+            tmrows = convertalis(querydb, targetdb, tmdb, joinpath(dir, "tm.tsv"); format_output="query,target,alntmscore")
+            @test length(tmrows) == 4
+            @test all(row -> row.alntmscore > 0.9, tmrows)
+
+            structuralndb = joinpath(dir, "structuralnDB")
+            structurealign(querydb, targetdb, prefilterdb, structuralndb; a=true)
+            sarows = convertalis(querydb, targetdb, structuralndb, joinpath(dir, "sa.tsv"))
+            @test length(sarows) == 4
+            @test all(row -> row.fident > 0.9, sarows)
+
+            srddb = joinpath(dir, "srdDB")
+            structurerescorediagonal(querydb, targetdb, prefilterdb, srddb; a=true)
+            srdrows = convertalis(querydb, targetdb, srddb, joinpath(dir, "srd.tsv"))
+            @test length(srdrows) == 4
+            @test all(row -> row.fident > 0.9, srdrows)
+
+            # aln2tmscore's output DB isn't itself convertalis-readable (it's
+            # a plain TM-score result, not an alignment DB), so it's checked
+            # by existence only, as with the format-conversion commands
+            # above that don't produce parseable text.
+            aln2tmdb = joinpath(dir, "aln2tmDB")
+            aln2tmscore(querydb, targetdb, structuralndb, aln2tmdb)
+            @test isfile(aln2tmdb * ".index")
+
+            # clust needs an all-vs-all result over a single merged DB (not
+            # separate query/target DBs) to produce a real cluster; extract
+            # cluster membership with the hidden createtsv command (no typed
+            # wrapper either, same rationale as prefilter above) and confirm
+            # all four chains land in one cluster, as with the multimer-level
+            # equivalent below.
+            merged = joinpath(dir, "mergedDB")
+            createdb([joinpath(fixture_dir, "1tim.pdb.gz"), joinpath(fixture_dir, "8tim.pdb.gz")], merged)
+            mergedprefilterdb = joinpath(dir, "mergedPrefilterDB")
+            foldseek("prefilter", merged, merged, mergedprefilterdb)
+            mergedalndb = joinpath(dir, "mergedAlnDB")
+            structurealign(merged, merged, mergedprefilterdb, mergedalndb)
+            clusterdb = joinpath(dir, "clusterDB")
+            clust(merged, mergedalndb, clusterdb)
+            clustertsv = joinpath(dir, "clusters.tsv")
+            foldseek("createtsv", merged, merged, clusterdb, clustertsv)
+            clusterlines = readlines(clustertsv)
+            @test length(clusterlines) == 4
+            @test length(unique(first.(split.(clusterlines, '\t')))) == 1
+
+            profiledb = joinpath(dir, "profileDB")
+            result2profile(querydb, targetdb, structuralndb, profiledb)
+            @test isfile(profiledb * ".index")
+        end
+
+        # expandmultimer and scoremultimer are the multimer-level stages
+        # multimersearch chains together internally (see the main-workflow
+        # commands testset above); reconstructing that pipeline by hand here
+        # confirms each stage individually, using the same heteromeric
+        # 4HHB/1Y8H pair so there's a genuine multi-chain-type complex to
+        # expand and score.
+        mktempdir() do dir
+            querydb = joinpath(dir, "queryDB")
+            targetdb = joinpath(dir, "targetDB")
+            createdb(joinpath(fixture_dir, "4hhb.pdb.gz"), querydb)
+            createdb(joinpath(fixture_dir, "1y8h.pdb.gz"), targetdb)
+            prefilterdb = joinpath(dir, "prefilterDB")
+            foldseek("prefilter", querydb, targetdb, prefilterdb)
+            chainalndb = joinpath(dir, "chainAlnDB")
+            structurealign(querydb, targetdb, prefilterdb, chainalndb)
+
+            expandeddb = joinpath(dir, "expandedDB")
+            expandmultimer(querydb, targetdb, chainalndb, expandeddb)
+            @test isfile(expandeddb * ".index")
+
+            expandedalndb = joinpath(dir, "expandedAlnDB")
+            structurealign(querydb, targetdb, expandeddb, expandedalndb; a=true)
+            complexdb = joinpath(dir, "complexDB")
+            scoremultimer(querydb, targetdb, expandedalndb, complexdb)
+
+            report = joinpath(dir, "report.tsv")
+            createmultimerreport(querydb, targetdb, complexdb, report)
+            lines = readlines(report)
+            @test length(lines) == 4
+            @test all(line -> parse(Float64, split(line, '\t')[5]) > 0.8, lines)
         end
     end
 end
