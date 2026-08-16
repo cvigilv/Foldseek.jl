@@ -4,26 +4,25 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-003: core-command-dispatcher
-`src/Foldseek.jl` now has two methods of `foldseek`. `foldseek(args::Cmd)` is the primitive: streams stdout live, captures stderr into a buffer, and raises a plain `ErrorException` (with the captured stderr text) on a nonzero exit instead of the less informative `ProcessFailedException` that plain `run` throws. `foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)` builds a `Cmd` from a subcommand name, positional args, and keyword flags (`_` → `-`, `Bool` → `"0"`/`"1"`, `nothing` → flag omitted), then delegates to the `Cmd` method. Both `test/runtests.jl` cases and the plan itself were updated; see `ANALYSIS_PLAN.md` CHUNK-003 Notes for the full contract.
+CHUNK-004: test-fixtures
+Added `test/data/1tim.pdb.gz` and `test/data/8tim.pdb.gz`, copied unmodified from upstream foldseek's own `example/` directory (commit `21952ed84e0f4a06ec6af08d58add77cef8dec14`), with provenance/license notes in `test/data/PROVENANCE.md`. Added a smoke test to `test/runtests.jl` that runs `foldseek("createdb", ...)` (CHUNK-003's dispatcher) on both fixtures into a `mktempdir()`-based output DB and checks the DB + its index file exist.
 
 ## Key decisions made
-- Kept `foldseek(args::Cmd)` as a standing low-level primitive rather than folding it entirely into the new method — CHUNK-005's `foldseek"..."` macro will tokenize its string with `Base.shell_split` into a `Cmd` and call this method directly, bypassing the subcommand/kwargs parsing that doesn't apply to a raw passthrough command.
-- `nothing` as a keyword value omits the flag rather than erroring or stringifying to `"nothing"`. This is now the established convention every CHUNK-006+ typed wrapper must follow for optional CLI options.
-- Tests assert on real stderr text from deliberately-invalid `foldseek createdb` invocations (`"Not enough input paths"`, `"Unrecognized parameter"`) rather than mocking the subprocess — these are stable, version-independent CLI messages, and exercising the real binary through a known-failure path is more informative than mocking `run`.
+- Used the exact files foldseek's own CLI examples reference, rather than trimming them down further or hand-rolling a synthetic PDB — no synthetic alternative gives a realistic multi-chain structure, and reusing upstream's own examples means any future confusion can be resolved by comparing against foldseek's own documented example commands.
+- The `createdb` smoke test doubles as the first real (non-metadata-only) exercise of CHUNK-003's dispatcher — it wasn't just a fixture-existence check, it's evidence the dispatcher's positional-args-then-output-path pattern actually works against the real binary.
 
 ## State of the codebase
-- Files created or modified: `src/Foldseek.jl` (dispatcher), `test/runtests.jl` (7 test cases now), `ANALYSIS_PLAN.md`.
+- Files created or modified: `test/data/1tim.pdb.gz`, `test/data/8tim.pdb.gz`, `test/data/PROVENANCE.md` (new), `test/runtests.jl`, `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 7/7 pass. Note: failure-path tests print the real `foldseek` stdout to the test log (progress/usage text) since only stderr is captured — this is expected noise, not a bug.
-- Entry point(s): `foldseek(::Cmd)` and `foldseek(subcommand, args...; kwargs...)`, both exported from `Foldseek`.
-- Known issues: none.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 9/9 pass.
+- Known issues: none. (`createdb` reports "Ignore 4 out of 8. Too short: 4" when processing the fixtures — expected chain-filtering on these structures, not a failure.)
 
 ## Next chunk
-CHUNK-004: test-fixtures
-Add `example/1tim.pdb.gz` and `example/8tim.pdb.gz` (from the upstream `steineggerlab/foldseek` repo — public-domain PDB coordinate data, ~72–84 KB gzipped each) to `test/data/`, with a short provenance note. These are needed starting with CHUNK-006 (easy-workflow-commands) for anything that touches real structure DBs. CHUNK-005 (foldseek-str-macro) has no dependency on CHUNK-004 and could be done first or in either order.
+CHUNK-005: foldseek-str-macro
+A `@foldseek_str` macro, invoked as `foldseek"easy-search q.pdb t.pdb out.m8 tmp"` (not `@foldseek"..."` — see Working Knowledge in the plan for why). Tokenize the string like a shell would (`Base.shell_split`) and call `foldseek(::Cmd)` (CHUNK-003's primitive) with the result. This is the passthrough escape hatch for every command not covered by a typed wrapper. Its only dependency (CHUNK-003) is already complete, so this is available to start now.
+
+Note: CHUNK-006 (easy-workflow-commands) is *also* fully unblocked as of this session (both its dependencies, CHUNK-003 and CHUNK-004, are now complete) — CHUNK-005 and CHUNK-006 could be done in either order; CHUNK-005 is next in the plan's numbering and is flagged high-priority in its own description.
 
 ## Watch out for
-- The dispatcher's error messages come only from captured **stderr**. If a future command's real error text lands on stdout instead (some CLI tools are inconsistent about this), the thrown error will say only "foldseek exited with code N" with no detail — worth spot-checking per command, not assumed uniform across all 27 target commands.
-- `foldseek(::Cmd)` and `foldseek(subcommand, args...; kwargs...)` are two methods of one exported generic function, not two separate names — CHUNK-005 and CHUNK-006+ should keep adding methods/using this same generic rather than introducing a differently-named entry point.
-- Test output is verbose (real `foldseek` usage/progress text prints during the deliberately-failing test cases) — this is intentional given the design (stdout streams live), not something to silently suppress without updating the CHUNK-003 Notes if that behavior changes later.
+- `Base.shell_split` is technically an internal/undocumented-but-stable Base function (it's what backtick command literals use under the hood) — confirm it's still exported/accessible the same way on both the LTS (1.10) and current Julia release before relying on it; if it ever moves, the macro breaks silently until tested.
+- The macro should reuse `foldseek(::Cmd)`, not the `foldseek(subcommand, args...; kwargs...)` method — the latter's flag-building logic (kwarg → `--flag value`) doesn't apply to a raw passthrough string, which is already fully user-specified.

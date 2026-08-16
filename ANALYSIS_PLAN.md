@@ -53,9 +53,10 @@ No figures/visualization for this plan — the project's outputs are code artifa
 
 ### CHUNK-004: test-fixtures
 - **Description**: Based on CHUNK-001's recon, add whatever minimal structure files or synthetic fixtures are needed for database/search/alignment tests, under `test/data/`. If real PDB/mmCIF files are bundled, record their provenance and license in a short note alongside them.
+- **Status**: `complete`
 - **Depends on**: CHUNK-001
 - **Verification strategy**: A smoke test that loads/parses each fixture successfully.
-- **Notes**:
+- **Notes**: Added `test/data/1tim.pdb.gz` and `test/data/8tim.pdb.gz`, copied unmodified from upstream foldseek's own `example/` directory (commit `21952ed84e0f4a06ec6af08d58add77cef8dec14`); provenance and license rationale in `test/data/PROVENANCE.md`. Smoke test runs `foldseek("createdb", ...)` (CHUNK-003's dispatcher) on both files into a `mktempdir()` output DB and asserts the DB + its index file exist — this exercises the dispatcher against a real multi-step, real-binary invocation for the first time, not just metadata-only commands. Note: `createdb` reports "Ignore 4 out of 8. Too short: 4" — of the two files' combined chains, 4 are filtered out as too short; this doesn't fail the command and isn't a fixture problem, just expected chain-filtering on these particular structures.
 
 ### CHUNK-005: foldseek-str-macro
 - **Description**: A `@foldseek_str` macro (used as `foldseek"easy-search q.pdb t.pdb out.m8 tmp"`) that tokenizes its string argument the way a shell would (quoting/escaping included — reuse `Base.shell_split`, the same tokenizer Julia's own `` `cmd` `` literal uses internally) and runs it through CHUNK-003's dispatcher. This is the universal escape hatch: any command not covered by a typed wrapper (CHUNK-006 onward), including every hidden foldseek command and all ~141 commands inherited from mmseqs2, stays reachable without writing a bespoke wrapper for each one. High priority — this is what makes the narrower CHUNK-006+ scope (typed wrappers only for `foldseek -h` commands) acceptable rather than a coverage gap.
@@ -103,6 +104,7 @@ No figures/visualization for this plan — the project's outputs are code artifa
 - 2026-08-16 CHUNK-001 (cli-recon) → next: CHUNK-003
 - 2026-08-16 plan revision (user resolved both open scope questions; no new chunk work) → next: CHUNK-003
 - 2026-08-16 CHUNK-003 (core-command-dispatcher) → next: CHUNK-004
+- 2026-08-16 CHUNK-004 (test-fixtures) → next: CHUNK-005
 
 ## Open Questions
 - BioJulia interop (BioSequences.jl, BioSymbols.jl, FASTX.jl, BioAlignments.jl, MIToS.jl) is deliberately out of scope for this plan — planned as a follow-up once the CLI wrapper is solid. Revisit with a fresh `/new-analysis-plan` pass at that point. MIToS.jl (https://github.com/diegozea/MIToS.jl) is a protein sequence/structure analysis toolbox (PDB parsing, MSAs, contact prediction) — a natural fit for Foldseek's structural search output, not a mitochondrial-genome tool as previously misnoted here.

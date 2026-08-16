@@ -18,4 +18,19 @@ using Test
         @test_throws "Unrecognized parameter" foldseek("createdb", "a", "b"; not_a_real_flag=1)
         @test foldseek("version"; verbosity=nothing) isa Base.Process
     end
+
+    @testset "test fixtures" begin
+        fixture_dir = joinpath(@__DIR__, "data")
+        mktempdir() do dir
+            db = joinpath(dir, "DB")
+            foldseek(
+                "createdb",
+                joinpath(fixture_dir, "1tim.pdb.gz"),
+                joinpath(fixture_dir, "8tim.pdb.gz"),
+                db,
+            )
+            @test isfile(db)
+            @test isfile(db * ".index")
+        end
+    end
 end
