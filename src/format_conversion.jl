@@ -24,7 +24,7 @@ function _convertalis_row(line::AbstractString, columns::Vector{Symbol})
     if length(fields) != length(columns)
         error(
             "convertalis output line has $(length(fields)) columns but $(length(columns)) were expected from format_output; " *
-            "pass a matching `format_output` value, or omit `format_mode`/use `format_mode=0` (the only mode this parses).",
+                "pass a matching `format_output` value, or omit `format_mode`/use `format_mode=0` (the only mode this parses).",
         )
     end
     return NamedTuple{Tuple(columns)}(Tuple(_convertalis_field(f) for f in fields))

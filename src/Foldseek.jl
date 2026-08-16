@@ -39,7 +39,7 @@ function foldseek(args::Cmd)
     exe = Sys.isapple() ? _macos_shadow_executable() : only(base.exec)
     cmd = setenv(`$exe $args`, base.env)
     err = IOBuffer()
-    proc = run(pipeline(ignorestatus(cmd); stderr=err))
+    proc = run(pipeline(ignorestatus(cmd); stderr = err))
     if !success(proc)
         message = String(take!(err))
         detail = isempty(message) ? "" : ":\n" * message
