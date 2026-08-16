@@ -4,27 +4,25 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-007: main-workflow-commands
-Added `src/main_workflows.jl` with typed functions for the 6 `foldseek -h` "Main workflows" commands: `createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`. These operate on Foldseek databases (built by `createdb`) rather than raw structure files — that's the actual distinction between "Easy workflows" and "Main workflows" in `-h`'s own grouping, not just a naming difference.
+CHUNK-008: database-and-set-commands
+Added `src/database_commands.jl` with typed functions for the 4 `foldseek -h` "Input database creation" / "Unite and intersect databases" commands: `databases`, `createindex`, `createclusearchdb`, `createsubdb`. All four are fixed-arity (no variadic args).
 
 ## Key decisions made
-- Function names map 1:1 to CLI subcommand names, same convention as CHUNK-006's `easy_*` functions.
-- Empirically confirmed (ran them, didn't assume) that `search` and `cluster` hit the same nested-subprocess `libomp.dylib` issue as the `easy-*` commands from CHUNK-006 — they're shell-script workflows too (`structuresearch.sh`, `clustering.sh`). `rbh`, `multimercluster`, `multimersearch` are presumed to be the same pattern (same category, not individually verified) and tested with the same bad-flag strategy.
-- `createdb` is a direct module with no internal re-exec, so it gets real end-to-end tests against the fixtures (both its single-path and vector-of-paths methods), unlike the other five.
-- Flagged, not fixed: `search`, `rbh`, `cluster` are short generic exported names with real `using`-collision risk against other packages. Kept for consistency with the direct-mapping convention; recorded as an Open Question in case the user wants to prefix these before release.
+- Confirmed `createindex` and `createsubdb` are also internal shell-script workflows hitting the nested-subprocess `libomp.dylib` limitation first found in CHUNK-006 — `createsubdb` was the surprising one, since its `-h` usage line looks like a simple single-DB operation but it still runs an internal temp shell script.
+- `databases` was never attempted for real — it downloads real reference data (tens to hundreds of GB per its own listing), which is inappropriate for a test run in any environment, not just this one.
+- **Changed the working approach**: given how broad this limitation has turned out to be (only `createdb` has been a genuine exception across 15 commands wrapped so far), stopped empirically test-running each new command before writing its test. Going forward, default to the bad-flag testing strategy directly unless there's a specific reason to expect a command is a direct, single-shot module.
 
 ## State of the codebase
-- Files created or modified: `src/main_workflows.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (folded the old standalone "test fixtures" testset into a new "main-workflow commands" testset with 2 full createdb runs + 5 bad-flag assertions), `ANALYSIS_PLAN.md`.
+- Files created or modified: `src/database_commands.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (4 new bad-flag test cases, 32 total), `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 28/28 pass.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 32/32 pass.
 - `test/data/` fixtures: confirmed clean after this session.
 - Known issues: none in committed code.
 
 ## Next chunk
-CHUNK-008: database-and-set-commands
-Typed wrappers for the 4 "Input database creation" / "Unite and intersect databases" commands `foldseek -h` prints: `databases`, `createindex`, `createclusearchdb`, `createsubdb`. Both dependencies (CHUNK-003, CHUNK-007) are complete. Check each command's `-h` usage line for its actual positional-arg shape before assuming it matches a sibling — this has differed within a section twice now (`easy-rbh` in CHUNK-006, and the Easy-vs-Main distinction in CHUNK-007). Also worth checking during CHUNK-008: is `databases` (which lists/downloads databases, likely involving network access) safe to typed-wrap the same way, or does it need different treatment (e.g. no fixture-based test at all, since downloading a real database isn't appropriate for a test suite)?
+CHUNK-009: format-conversion-commands
+Typed wrappers for the 4 "Format conversion" commands `foldseek -h` prints: `convertalis`, `compressca`, `convert2pdb`, `createmultimerreport`. Only dependency (CHUNK-007) is complete. Per the plan's own description, `convertalis`'s tabular output should be parsed into a native Julia structure (`Vector` of `NamedTuple`s) rather than left as raw text — this is the first chunk with real post-processing logic beyond argument marshaling, not just a positional-args-plus-kwargs passthrough. Worth checking whether `convertalis` is a direct module (format converters typically are, unlike the *search*/*cluster*/*index* workflow commands) before assuming it needs the bad-flag-only testing fallback — if it's direct, real parsing logic deserves a real test with actual output to parse, not just an error-path assertion.
 
 ## Watch out for
-- Don't assume a command in the "Main workflows" or later `-h` sections behaves like `createdb` (direct module) — check empirically (a quick real-fixture run) rather than assuming from category alone, same as this session did for `search`/`cluster`.
-- `test/data/` pollution risk remains real for any manual/ad hoc testing against the fixtures with too few positional args (see CHUNK-005's note in the plan) — always use `mktempdir()` for outputs.
-- If CHUNK-008's `databases` command needs network access to test meaningfully, that's likely out of scope for the committed test suite (which must stay portable/offline per the project's testing conventions) — document that as a manual-verification-only note rather than skipping silently.
+- Default to bad-flag-only testing for any command in CHUNK-009/010 unless a quick real-fixture attempt succeeds — see Working Knowledge in the plan for why empirical pre-checking every command stopped being worth the time.
+- If `convertalis` does turn out testable, generating real output to parse will need an alignment DB as input — building one requires `search`, which is one of the commands confirmed broken in this environment. May need to find another path to a valid alignment DB fixture (e.g. checking whether `foldseek`'s own example outputs, or a more minimal single-step alignment command, can produce one) rather than assuming `search`'s output is obtainable here.

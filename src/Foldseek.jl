@@ -77,5 +77,6 @@ end
 
 include("easy_workflows.jl")
 include("main_workflows.jl")
+include("database_commands.jl")
 
 end

@@ -85,4 +85,18 @@ using Test
         @test_throws "Unrecognized parameter" multimercluster("a", "b", "c"; bad_flag=1)
         @test_throws "Unrecognized parameter" multimersearch("a", "b", "c", "d"; bad_flag=1)
     end
+
+    @testset "database-and-set commands" begin
+        # createindex and createsubdb were confirmed (like search/cluster
+        # before them) to be shell-script workflows hitting the same
+        # nested-subprocess limitation; databases genuinely downloads
+        # multi-gigabyte reference data, which is never appropriate to run in
+        # a test suite regardless of environment. All four are tested via
+        # flag validation only, consistent with every other command chunk
+        # where a full run isn't a portable thing to assert on.
+        @test_throws "Unrecognized parameter" databases("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" createindex("a", "b"; bad_flag=1)
+        @test_throws "Unrecognized parameter" createclusearchdb("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" createsubdb("a", "b", "c"; bad_flag=1)
+    end
 end
