@@ -4,25 +4,54 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-008: database-and-set-commands
-Added `src/database_commands.jl` with typed functions for the 4 `foldseek -h` "Input database creation" / "Unite and intersect databases" commands: `databases`, `createindex`, `createclusearchdb`, `createsubdb`. All four are fixed-arity (no variadic args).
+macOS `libomp.dylib` nested-subprocess fix (cross-cutting, not a numbered chunk)
+Diagnosed and fixed the macOS-specific limitation documented in CHUNK-006/007/008 (many `foldseek` commands crash when they internally re-invoke themselves as a subprocess). Root cause confirmed via `otool -l`: `Foldseek_jll`'s macOS artifact has no local `lib/` directory and relies entirely on `DYLD_FALLBACK_LIBRARY_PATH`, which macOS's dyld strips across an exec into `/bin/sh` (used internally for nested re-invocation). Added `src/macos_shadow_executable.jl`: on macOS, `foldseek(::Cmd)` now runs a real copy of the binary cached in `Scratch.jl` space, alongside symlinked `libz.1.dylib`/`libbz2.1.0.dylib`/`libomp.dylib` matching the binary's exact `@rpath` dependency names. Verified end-to-end (not just claimed): `easy_search`, `search`, `cluster`, and `createsubdb` all now complete successfully against the real fixtures. Upgraded the corresponding tests from bad-flag-only to real end-to-end assertions.
 
 ## Key decisions made
-- Confirmed `createindex` and `createsubdb` are also internal shell-script workflows hitting the nested-subprocess `libomp.dylib` limitation first found in CHUNK-006 — `createsubdb` was the surprising one, since its `-h` usage line looks like a simple single-DB operation but it still runs an internal temp shell script.
-- `databases` was never attempted for real — it downloads real reference data (tens to hundreds of GB per its own listing), which is inappropriate for a test run in any environment, not just this one.
-- **Changed the working approach**: given how broad this limitation has turned out to be (only `createdb` has been a genuine exception across 15 commands wrapped so far), stopped empirically test-running each new command before writing its test. Going forward, default to the bad-flag testing strategy directly unless there's a specific reason to expect a command is a direct, single-shot module.
+- **A symlink to the real binary does not work** — confirmed empirically before committing to the design. macOS's `@loader_path` resolves from the executable's real on-disk location, not the path it was invoked through, so the shadow `bin/` directory must contain a real *copy* of the binary, not a symlink. The library targets inside `lib/` can be symlinks (only the executable itself matters).
+- **Target library names must match the binary's exact declared `@rpath` dependency names, not the JLL-provided filename.** `Bzip2_jll.libbzip2_path` is `libbz2.1.0.9.dylib` on this machine, but the binary looks for `libbz2.1.0.dylib` exactly — dyld does not do prefix/fuzzy matching. Hardcoded the three exact names (`libz.1.dylib`, `libbz2.1.0.dylib`, `libomp.dylib`, from `otool -L`) rather than deriving them from `basename(jll_path)`.
+- Added `Zlib_jll`, `Bzip2_jll`, `LLVMOpenMP_jll`, `Scratch` as new Project.toml dependencies (all platforms, though the shadow-executable code only runs on macOS) — fixed `Pkg.add`'s auto-generated exact-version compat pins to proper lower-bound ranges (`"1"`, `"22"`) rather than leaving them pinned to whatever happened to resolve today.
+- Upgraded tests for commands now verified working end-to-end (`easy_search`, `search`, `cluster`, `createsubdb`) from bad-flag-only assertions to real runs with meaningful checks (sequence identity for search hits, file existence for DB outputs). Left `rbh`, `multimercluster`, `multimersearch`, `createindex`, `createclusearchdb` on bad-flag-only testing — not individually reverified this session, though presumably also fixed now.
+- Did **not** file the upstream GitHub issue — drafted the text, awaiting explicit approval on wording and target repo per this user's standing instruction to never post to GitHub without sign-off.
 
 ## State of the codebase
-- Files created or modified: `src/database_commands.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (4 new bad-flag test cases, 32 total), `ANALYSIS_PLAN.md`.
+- Files created or modified: `src/macos_shadow_executable.jl` (new), `src/Foldseek.jl` (wired in the shadow executable + docstring update), `Project.toml` (4 new deps + compat), `test/runtests.jl` (3 bad-flag tests upgraded to real end-to-end runs across 3 testsets), `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 32/32 pass.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 34/34 pass.
 - `test/data/` fixtures: confirmed clean after this session.
-- Known issues: none in committed code.
+- Known issues: none in committed code. The fix is macOS-specific by design (`Sys.isapple()`-guarded); untested on Linux/Windows but shouldn't be needed there (no reports of the underlying dyld-stripping behavior on those platforms, since it's a macOS/SIP-specific mechanism).
 
 ## Next chunk
-CHUNK-009: format-conversion-commands
-Typed wrappers for the 4 "Format conversion" commands `foldseek -h` prints: `convertalis`, `compressca`, `convert2pdb`, `createmultimerreport`. Only dependency (CHUNK-007) is complete. Per the plan's own description, `convertalis`'s tabular output should be parsed into a native Julia structure (`Vector` of `NamedTuple`s) rather than left as raw text — this is the first chunk with real post-processing logic beyond argument marshaling, not just a positional-args-plus-kwargs passthrough. Worth checking whether `convertalis` is a direct module (format converters typically are, unlike the *search*/*cluster*/*index* workflow commands) before assuming it needs the bad-flag-only testing fallback — if it's direct, real parsing logic deserves a real test with actual output to parse, not just an error-path assertion.
+CHUNK-009: format-conversion-commands (unchanged from before this fix — see prior handoff). Typed wrappers for `convertalis`, `compressca`, `convert2pdb`, `createmultimerreport`. One thing that's changed: don't default to bad-flag-only testing without checking first — the underlying environment blocker that motivated that default (CHUNK-008 Working Knowledge) is now fixed, so a real run may well work and should be attempted.
 
 ## Watch out for
-- Default to bad-flag-only testing for any command in CHUNK-009/010 unless a quick real-fixture attempt succeeds — see Working Knowledge in the plan for why empirical pre-checking every command stopped being worth the time.
-- If `convertalis` does turn out testable, generating real output to parse will need an alignment DB as input — building one requires `search`, which is one of the commands confirmed broken in this environment. May need to find another path to a valid alignment DB fixture (e.g. checking whether `foldseek`'s own example outputs, or a more minimal single-step alignment command, can produce one) rather than assuming `search`'s output is obtainable here.
+- If the user asks to file the upstream issue, use the drafted text (below) but get explicit sign-off on final wording and target repo (`JuliaBinaryWrappers/Foldseek_jll.jl` vs `JuliaPackaging/Yggdrasil` vs `steineggerlab/foldseek`) before posting — never post without that confirmation.
+- The `Scratch.jl` cache (`@get_scratch!("foldseek-macos-shadow")`) persists across Julia sessions in `~/.julia/scratchspaces/`; it self-invalidates and rebuilds if `Foldseek_jll`'s resolved binary path changes (e.g. after a version bump), via the `source` marker file check in `_macos_shadow_executable()`. No manual cleanup needed, but worth knowing it exists if debugging something that looks like a stale-binary issue.
+- Don't assume the shadow-executable fix generalizes to other JLL packages with the same pattern — the exact `@rpath` dependency names were hardcoded from `foldseek`'s specific `otool -L` output and would need re-deriving for any other binary.
+
+---
+
+## Draft upstream issue (NOT yet posted — needs approval)
+
+**Target repo**: undecided — likely `JuliaPackaging/Yggdrasil` (where the Foldseek_jll build recipe lives) or `JuliaBinaryWrappers/Foldseek_jll.jl` directly. Could also be worth a note to `steineggerlab/foldseek` if the real fix should be on the foldseek side (having its internal subprocess re-invocation re-propagate `DYLD_*` env vars, or avoid going through `/bin/sh`).
+
+**Draft title**: `foldseek's internal subprocess re-invocation fails on macOS with "Library not loaded: @rpath/libomp.dylib"`
+
+**Draft body**:
+> On macOS (confirmed on Apple Silicon), any `foldseek` command that internally re-invokes itself as a subprocess (`easy-search`, `easy-cluster`, `search`, `cluster`, `createindex`, `createsubdb`, and likely others — these are implemented as embedded shell scripts, e.g. `structuresearch.sh`, `clustering.sh`, that call `"$MMSEQS" <stage> ...`) crashes with:
+>
+> ```
+> dyld[...]: Library not loaded: @rpath/libomp.dylib
+>   Referenced from: <...> .../bin/foldseek
+>   Reason: tried: '.../bin/../lib/libomp.dylib' (no such file), ...
+> ```
+>
+> **Root cause**: the macOS build of `foldseek` (and `Foldseek_jll`) has no local `lib/` directory bundling its `@rpath` dependencies (`libz.1.dylib`, `libbz2.1.0.dylib`, `libomp.dylib` — confirmed via `otool -L`/`otool -l`; `LC_RPATH` is `@loader_path/../lib`). It resolves them entirely via `DYLD_FALLBACK_LIBRARY_PATH`, which `Foldseek_jll`'s Julia wrapper injects for the top-level process it spawns directly. But `foldseek`'s own internal workflow scripts re-invoke `foldseek` as a subprocess via `/bin/sh`, and macOS's dyld strips `DYLD_*` environment variables across an exec into `/bin/sh` (a SIP-protected, hardened-runtime binary) — so the nested subprocess loses the library path and aborts, regardless of whether the given input paths are valid.
+>
+> **Confirmed fix**: placing real copies of `libz.1.dylib`, `libbz2.1.0.dylib`, and `libomp.dylib` in a `lib/` directory next to `bin/foldseek` (satisfying `@loader_path/../lib` directly, independent of environment variables) makes every previously-crashing command complete successfully. A symlink to the real `foldseek` binary is *not* sufficient — `@loader_path` resolves from the binary's real on-disk location, not the invocation path — but the library files themselves can be symlinks.
+>
+> **Suggested fix**: bundle a `lib/` directory in the macOS `Foldseek_jll` artifact containing (copies or symlinks of, however BinaryBuilder normally handles this) its `@rpath` dependencies, the way most BinaryBuilder-produced artifacts already do. This would fix the issue for every consumer of `Foldseek_jll` on macOS, not just downstream wrapper packages working around it individually.
+>
+> Happy to share a minimal reproduction script if useful.
+
+*(This draft cites concrete facts observed this session — file paths, error text, otool output — nothing fabricated. Still needs your review before it goes anywhere.)*

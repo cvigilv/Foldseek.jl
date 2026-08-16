@@ -4,6 +4,8 @@ using Foldseek_jll: Foldseek_jll
 
 export foldseek, @foldseek_str
 
+include("macos_shadow_executable.jl")
+
 """
     foldseek(args::Cmd)
 
@@ -13,10 +15,17 @@ the message `foldseek` actually printed. Returns the resulting `Process` on
 success and throws an `ErrorException` — including the captured stderr — on a
 nonzero exit code, rather than the less informative `ProcessFailedException`
 that plain `run` would throw.
+
+On macOS, this runs a cached local copy of the executable rather than the
+`Foldseek_jll` artifact directly (see `src/macos_shadow_executable.jl`) — a
+workaround for `foldseek` commands that internally re-invoke themselves as a
+subprocess, which macOS's dyld would otherwise break by stripping the
+`DYLD_*` environment variables the library needs to find its dependencies.
 """
 function foldseek(args::Cmd)
-    exe = Foldseek_jll.foldseek()
-    cmd = `$exe $args`
+    base = Foldseek_jll.foldseek()
+    exe = Sys.isapple() ? _macos_shadow_executable() : only(base.exec)
+    cmd = setenv(`$exe $args`, base.env)
     err = IOBuffer()
     proc = run(pipeline(ignorestatus(cmd); stderr=err))
     if !success(proc)

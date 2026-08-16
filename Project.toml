@@ -1,13 +1,21 @@
 name = "Foldseek"
 uuid = "18b00e40-4136-4e02-a689-fa1fe84f9a65"
-authors = ["Carlos Vigil-Vásquez <carlos.vigil.v@gmail.com>"]
 version = "0.1.0"
+authors = ["Carlos Vigil-Vásquez <carlos.vigil.v@gmail.com>"]
 
 [deps]
+Bzip2_jll = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
 Foldseek_jll = "f5adda9a-30aa-5201-a847-bcd4e31b8420"
+LLVMOpenMP_jll = "1d63c593-3942-5779-bab2-d838dc0a180e"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
+Zlib_jll = "83775a58-1f1d-513f-b197-d71354ab007a"
 
 [compat]
+Bzip2_jll = "1"
 Foldseek_jll = "10"
+LLVMOpenMP_jll = "22"
+Scratch = "1"
+Zlib_jll = "1"
 julia = "1.10"
 
 [extras]
