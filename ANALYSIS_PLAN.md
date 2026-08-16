@@ -118,7 +118,11 @@ No figures/visualization for this plan — the project's outputs are code artifa
 
 ### CHUNK-012: end-to-end-example
 - **Description**: An example script under `scripts/` reproducing a full workflow (create DB → search → convert results) end-to-end using the CHUNK-004 fixtures, demonstrating the wrapper is usable standalone without shelling out manually.
+- **Status**: `complete`
 - **Depends on**: CHUNK-007, CHUNK-009
+- **Notes**: Added `scripts/end_to_end_example.jl` — a thin script (import, call functions, print a summary; no logic that belongs in `src/`) running `createdb` → `search` → `convertalis` against the 1TIM/8TIM fixtures and printing each alignment's identity/length/E-value. Ran it directly (not just read) to confirm it works end to end: 4 alignments, ~96.7% identity each, matching the same pipeline already exercised in `test/runtests.jl`'s format-conversion testset. No dedicated test added for the script itself — it only calls already-tested package functions in an already-tested sequence (CHUNK-009's `convertalis` testset), so a script-level test would just duplicate that coverage rather than add any.
+
+  All chunks in this plan are now `complete`.
 - **Notes**:
 
 ## Session ledger
@@ -136,6 +140,7 @@ No figures/visualization for this plan — the project's outputs are code artifa
 - 2026-08-16 heteromeric test-fixture addendum (cross-cutting, not a numbered chunk; user-requested) → next: CHUNK-010
 - 2026-08-16 CHUNK-010 (alignment-clustering-profile-commands) → next: CHUNK-011
 - 2026-08-16 CHUNK-011 (public-api-and-docs) → next: CHUNK-012
+- 2026-08-16 CHUNK-012 (end-to-end-example) → next: none, all chunks complete
 
 ## Open Questions
 - File an upstream issue against `Foldseek_jll`/Yggdrasil (or `steineggerlab/foldseek` — needs a decision on which repo owns the fix) describing the macOS nested-subprocess `libomp.dylib` bug and its confirmed root cause (see the macOS libomp fix Working Knowledge entry). `src/macos_shadow_executable.jl` is a local workaround, not a substitute — every other macOS consumer of `Foldseek_jll` hits the same bug. Draft ready; awaiting approval on exact text and target repo before filing (never post to GitHub without explicit sign-off on the text).
