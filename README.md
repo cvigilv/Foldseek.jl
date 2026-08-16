@@ -1,5 +1,10 @@
 # Foldseek.jl
 
+[![CI](https://github.com/cvigilv/Foldseek.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/cvigilv/Foldseek.jl/actions/workflows/CI.yml)
+[![Documentation (stable)](https://img.shields.io/badge/docs-stable-blue.svg)](https://cvigilv.github.io/Foldseek.jl/stable)
+[![Documentation (dev)](https://img.shields.io/badge/docs-dev-blue.svg)](https://cvigilv.github.io/Foldseek.jl/dev)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/cvigilv/Foldseek.jl/blob/main/LICENSE)
+
 A Julia wrapper around [Foldseek](https://github.com/steineggerlab/foldseek),
 via the bundled executable in
 [Foldseek_jll.jl](https://github.com/JuliaBinaryWrappers/Foldseek_jll.jl). It
@@ -13,6 +18,9 @@ typed function.
 using Pkg
 Pkg.add("Foldseek")
 ```
+
+Linux and macOS only — [`Foldseek_jll`](https://github.com/JuliaBinaryWrappers/Foldseek_jll.jl)
+ships no Windows artifact, so this package cannot install there yet.
 
 ## Usage
 
