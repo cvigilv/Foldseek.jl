@@ -4,27 +4,26 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-001: cli-recon
-Enumerated the full `foldseek` CLI surface, not just what `foldseek -h` shows. `-h` only lists ~24 curated commands; Foldseek is built on the mmseqs2 command framework and inherits 141 additional commands that are hidden from `-h` (`hide_base_commands = true`) but fully callable — confirmed directly (`foldseek createtsv -h`, `foldseek mvdb -h`, `foldseek version` all work). Got the authoritative list by shallow-cloning `steineggerlab/foldseek` and parsing `src/FoldseekBase.cpp` (39 foldseek-specific commands) and `lib/mmseqs/src/MMseqsBase.cpp` (141 inherited commands). Full inventory, flag conventions, and a proposed Tier 1 / Tier 2 / out-of-scope categorization are in `CLI_NOTES.md`.
+CHUNK-003: core-command-dispatcher
+`src/Foldseek.jl` now has two methods of `foldseek`. `foldseek(args::Cmd)` is the primitive: streams stdout live, captures stderr into a buffer, and raises a plain `ErrorException` (with the captured stderr text) on a nonzero exit instead of the less informative `ProcessFailedException` that plain `run` throws. `foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)` builds a `Cmd` from a subcommand name, positional args, and keyword flags (`_` → `-`, `Bool` → `"0"`/`"1"`, `nothing` → flag omitted), then delegates to the `Cmd` method. Both `test/runtests.jl` cases and the plan itself were updated; see `ANALYSIS_PLAN.md` CHUNK-003 Notes for the full contract.
 
 ## Key decisions made
-- Test fixtures for CHUNK-004: bundle `example/1tim.pdb.gz` + `example/8tim.pdb.gz` from foldseek's own repo (public-domain PDB coordinate data, two homologous structures — gives search/cluster/rbh a real positive hit to assert on). No synthetic alternative exists for structure files the way inline FASTA text works for sequences.
-- Restructured CHUNK-005 through CHUNK-008 (originally a 4-chunk db/search/convert/remaining split) into CHUNK-005 through CHUNK-015, because the real CLI surface (~180 commands total) is far larger than the original plan assumed. Split by category: easy-workflows, main-workflows, database-management, db-lifecycle-utility, format-conversion, alignment-and-scoring, result-processing, cluster-utility, then docs and the end-to-end example. Full rationale in `CLI_NOTES.md`.
-- **Superseded same day, after user review**: the Tier 1/2/3 split above (and CHUNK-013) is replaced. The user decided typed wrappers are scoped to exactly the 27 commands `foldseek -h` prints (CHUNK-006–010, renumbered), and everything else — hidden foldseek commands and all ~141 inherited mmseqs2 commands — goes through a new `foldseek"..."` passthrough string macro (CHUNK-005) instead of individual wrappers. Both open scope questions are resolved by this decision, not answered case-by-case. `ANALYSIS_PLAN.md` and `CLI_NOTES.md` ("Scope decision" section) reflect the current, correct chunk list — CHUNK-013 no longer exists.
-- The macro's canonical invocation is `foldseek"easy-search q.pdb t.pdb out.m8 tmp"` (Julia's `prefix"..."` sugar for `macro foldseek_str`), not `@foldseek"..."` — Julia's string-macro sugar only expands for macros named `..._str`, so `@foldseek"..."` (as literally suggested) isn't valid syntax for this.
+- Kept `foldseek(args::Cmd)` as a standing low-level primitive rather than folding it entirely into the new method — CHUNK-005's `foldseek"..."` macro will tokenize its string with `Base.shell_split` into a `Cmd` and call this method directly, bypassing the subcommand/kwargs parsing that doesn't apply to a raw passthrough command.
+- `nothing` as a keyword value omits the flag rather than erroring or stringifying to `"nothing"`. This is now the established convention every CHUNK-006+ typed wrapper must follow for optional CLI options.
+- Tests assert on real stderr text from deliberately-invalid `foldseek createdb` invocations (`"Not enough input paths"`, `"Unrecognized parameter"`) rather than mocking the subprocess — these are stable, version-independent CLI messages, and exercising the real binary through a known-failure path is more informative than mocking `run`.
 
 ## State of the codebase
-- Files created or modified: `CLI_NOTES.md` (new), `ANALYSIS_PLAN.md` (chunk restructure, Working knowledge, Open Questions, session ledger).
-- No package code changed this session — CHUNK-001 was pure recon.
-- Package loads cleanly: yes (unchanged from prior session).
-- Test suite passes: yes (unchanged — `test/runtests.jl` still just the `foldseek(`version`)` smoke test).
+- Files created or modified: `src/Foldseek.jl` (dispatcher), `test/runtests.jl` (7 test cases now), `ANALYSIS_PLAN.md`.
+- Package loads cleanly: yes.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 7/7 pass. Note: failure-path tests print the real `foldseek` stdout to the test log (progress/usage text) since only stderr is captured — this is expected noise, not a bug.
+- Entry point(s): `foldseek(::Cmd)` and `foldseek(subcommand, args...; kwargs...)`, both exported from `Foldseek`.
 - Known issues: none.
 
 ## Next chunk
-CHUNK-003: core-command-dispatcher
-The only chunk with all dependencies satisfied (CHUNK-001, CHUNK-002 are both `complete`). Refactor `foldseek(::Cmd)` in `src/Foldseek.jl` into the shared dispatcher: subcommand name + positional args + Julia kwargs → `Cmd`, run it, raise a Julia error with captured stderr on nonzero exit. Get the BOOL-flag mapping right here (see Watch out for, below) since every later wrapper chunk depends on it. CHUNK-004 (test-fixtures) has no unmet dependencies either and could be done in the same or a following session before CHUNK-005.
+CHUNK-004: test-fixtures
+Add `example/1tim.pdb.gz` and `example/8tim.pdb.gz` (from the upstream `steineggerlab/foldseek` repo — public-domain PDB coordinate data, ~72–84 KB gzipped each) to `test/data/`, with a short provenance note. These are needed starting with CHUNK-006 (easy-workflow-commands) for anything that touches real structure DBs. CHUNK-005 (foldseek-str-macro) has no dependency on CHUNK-004 and could be done first or in either order.
 
 ## Watch out for
-- **BOOL flags take an explicit value.** `-a BOOL` / `--diag-score BOOL` etc. need `--flag 0` or `--flag 1`, never a bare `--flag`. This must be correct in CHUNK-003's dispatcher from the start — get it wrong there and every downstream wrapper (and CHUNK-005's macro, indirectly, since it shares the dispatcher for running the resolved `Cmd`) inherits the bug.
-- `foldseek -h` **is** now the source of truth for typed-wrapper scope (CHUNK-006–010) — this flipped from the previous note in this file. It is still not the source of truth for "does this command exist at all": everything else is real and callable via `foldseek"..."` (CHUNK-005), just not worth a typed wrapper.
-- Category membership (`COMMAND_MAIN`, `COMMAND_ALIGNMENT`, ...) does **not** imply `-h` visibility — use the literal 27-command list in `CLI_NOTES.md`'s "Scope decision" section, not the category tables above it.
+- The dispatcher's error messages come only from captured **stderr**. If a future command's real error text lands on stdout instead (some CLI tools are inconsistent about this), the thrown error will say only "foldseek exited with code N" with no detail — worth spot-checking per command, not assumed uniform across all 27 target commands.
+- `foldseek(::Cmd)` and `foldseek(subcommand, args...; kwargs...)` are two methods of one exported generic function, not two separate names — CHUNK-005 and CHUNK-006+ should keep adding methods/using this same generic rather than introducing a differently-named entry point.
+- Test output is verbose (real `foldseek` usage/progress text prints during the deliberately-failing test cases) — this is intentional given the design (stdout streams live), not something to silently suppress without updating the CHUNK-003 Notes if that behavior changes later.

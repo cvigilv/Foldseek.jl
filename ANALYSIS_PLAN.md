@@ -28,6 +28,7 @@ No figures/visualization for this plan — the project's outputs are code artifa
 - 2026-08-16 (CHUNK-001, corrected after user review): whether a command shows up in `foldseek -h` is **not** fully determined by its C++ category — e.g. `structureclusterupdate` is `COMMAND_MAIN` and `lolalign`/`easy-complexsearch` sit in categories that partly appear in `-h`, yet none of the three are actually printed by `foldseek -h`. The literal list of ~27 names printed by `foldseek -h` (recorded verbatim in `CLI_NOTES.md`) is the only reliable ground truth for "is this a typed-wrapper command," not category membership.
 - 2026-08-16 (CHUNK-001, after user decision): scope for typed wrappers is now fixed at exactly the commands `foldseek -h` prints (~27; see `CLI_NOTES.md`). Everything else — hidden foldseek commands and all inherited mmseqs2 commands — is reached through the `foldseek"..."` string macro (CHUNK-005) instead of individual typed wrappers. This replaces the CHUNK-013 (blocked) / Tier-2 / Tier-3 categorization from the original CHUNK-001 pass; that categorization is superseded, not just deferred.
 - 2026-08-16: the string-macro's canonical call syntax is `foldseek"easy-search q.pdb t.pdb out.m8 tmp"` (Julia's `prefix"..."` sugar for a macro named `@foldseek_str`), not `@foldseek"..."` — Julia only expands the `prefix"..."` sugar for macros whose name ends in `_str`; there is no way to make bare `@foldseek"..."` work as a non-standard string literal.
+- 2026-08-16 (CHUNK-003): the dispatcher's established contract, which every CHUNK-005+ chunk must follow: call `foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)`; a keyword `foo_bar=value` becomes CLI flag `--foo-bar`; a `Bool` value becomes `"0"`/`"1"`; a keyword value of `nothing` omits that flag entirely — this is how typed wrappers should spell "argument not set" for an optional CLI option. Both `foldseek(::Cmd)` and this method raise a plain `ErrorException` (not `ProcessFailedException`) whose message includes the real stderr text `foldseek` printed.
 
 ## Chunks
 
@@ -45,9 +46,10 @@ No figures/visualization for this plan — the project's outputs are code artifa
 
 ### CHUNK-003: core-command-dispatcher
 - **Description**: Refactor the existing `foldseek(args::Cmd)` primitive into the shared low-level dispatcher every typed subcommand wrapper below (and the CHUNK-005 macro) will call: given a subcommand name, positional args, and Julia keyword arguments, build the corresponding `Cmd` (kwargs map to `--flag value`; per Working Knowledge above, `Bool` values map to `--flag 0`/`--flag 1`, not a bare `--flag`), run it, and raise a Julia error including captured stderr on nonzero exit rather than letting `run` throw its generic `ProcessFailedException`.
+- **Status**: `complete`
 - **Depends on**: CHUNK-001 (flag-naming conventions), CHUNK-002
 - **Verification strategy**: Unit tests using argument-free or metadata-only invocations (e.g. `version`, `-h`) that don't require structure data.
-- **Notes**:
+- **Notes**: Two-layer design: `foldseek(args::Cmd)` is the primitive (streams stdout live, captures stderr, raises an `ErrorException` with the captured stderr on nonzero exit instead of the less informative `ProcessFailedException`); `foldseek(subcommand::AbstractString, args::AbstractString...; kwargs...)` builds a `Cmd` from a subcommand, positional args, and keyword flags, then calls the `Cmd` method. Keyword keys map `_` → `-` (`comp_bias_corr` → `--comp-bias-corr`); `Bool` values map to `"0"`/`"1"` per the BOOL-flag Working Knowledge entry; a value of `nothing` omits the flag entirely, which is how CHUNK-006+ typed wrappers should represent "unset" optional keyword arguments. Both layers are used by CHUNK-005's macro (via the `Cmd` method) and by every typed wrapper chunk (via the subcommand method). Tests assert on real captured-stderr text from `foldseek createdb` run with missing/bad arguments (`"Not enough input paths"`, `"Unrecognized parameter"`) rather than mocking, since these are stable, documented CLI error messages — no network or structure-file fixtures needed yet.
 
 ### CHUNK-004: test-fixtures
 - **Description**: Based on CHUNK-001's recon, add whatever minimal structure files or synthetic fixtures are needed for database/search/alignment tests, under `test/data/`. If real PDB/mmCIF files are bundled, record their provenance and license in a short note alongside them.
@@ -100,6 +102,7 @@ No figures/visualization for this plan — the project's outputs are code artifa
 <!-- The implementer appends one line after each session: `- YYYY-MM-DD CHUNK-XXX (name) → next: CHUNK-YYY` -->
 - 2026-08-16 CHUNK-001 (cli-recon) → next: CHUNK-003
 - 2026-08-16 plan revision (user resolved both open scope questions; no new chunk work) → next: CHUNK-003
+- 2026-08-16 CHUNK-003 (core-command-dispatcher) → next: CHUNK-004
 
 ## Open Questions
 - BioJulia interop (BioSequences.jl, BioSymbols.jl, FASTX.jl, BioAlignments.jl, MIToS.jl) is deliberately out of scope for this plan — planned as a follow-up once the CLI wrapper is solid. Revisit with a fresh `/new-analysis-plan` pass at that point. MIToS.jl (https://github.com/diegozea/MIToS.jl) is a protein sequence/structure analysis toolbox (PDB parsing, MSAs, contact prediction) — a natural fit for Foldseek's structural search output, not a mitochondrial-genome tool as previously misnoted here.
