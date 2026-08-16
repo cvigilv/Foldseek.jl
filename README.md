@@ -46,6 +46,44 @@ which runs a command written exactly as it would be on the command line:
 foldseek"createtsv queryDB targetDB clusterDB clusters.tsv"
 ```
 
+## Examples
+
+Runnable scripts under `scripts/` demonstrate full workflows end to end
+using the fixtures bundled in `test/data/`:
+
+- [`scripts/end_to_end_example.jl`](https://github.com/cvigilv/Foldseek.jl/blob/main/scripts/end_to_end_example.jl) —
+  build two structure databases, search one against the other, and print
+  each alignment's identity and E-value.
+- [`scripts/structures_to_3di.jl`](https://github.com/cvigilv/Foldseek.jl/blob/main/scripts/structures_to_3di.jl) —
+  convert every structure file in a directory to Foldseek's 3Di structural
+  alphabet, one FASTA-format sequence per chain.
+
+### Converting a directory of structures to 3Di sequences
+
+`createdb` builds one database per representation from the same input —
+`DB` (amino acid sequence), `DB_ss` (3Di structural sequence), and `DB_ca`
+(C-alpha coordinates). `DB_ss` has no header sub-database of its own, so
+`convert2fasta` needs one linked in via `lndb` before it can label each
+FASTA entry; both are commands with no typed wrapper (see `CLI_NOTES.md`),
+reached directly through `foldseek`:
+
+```julia
+using Foldseek
+
+structure_dir = "path/to/structures" # PDB and/or mmCIF files, gzipped or not
+
+mktempdir() do dir
+    db = joinpath(dir, "DB")
+    createdb(structure_dir, db)
+    foldseek("lndb", db * "_h", db * "_ss_h")
+
+    fastafile = joinpath(dir, "DB_ss.fasta")
+    foldseek("convert2fasta", db * "_ss", fastafile)
+
+    print(read(fastafile, String))
+end
+```
+
 ## Command coverage
 
 Every command `foldseek -h` prints is wrapped, grouped below exactly as
