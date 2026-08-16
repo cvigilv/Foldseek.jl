@@ -53,18 +53,36 @@ using Test
         @test_throws "Unrecognized parameter" easy_multimersearch(["a", "b"], "c", "d", "e"; bad_flag=1)
     end
 
-    @testset "test fixtures" begin
+    @testset "main-workflow commands" begin
         fixture_dir = joinpath(@__DIR__, "data")
+
+        # createdb is a direct module (no internal re-exec), so it's fully
+        # testable end-to-end against real fixtures, through both the
+        # single-path and vector-of-paths methods.
         mktempdir() do dir
             db = joinpath(dir, "DB")
-            foldseek(
-                "createdb",
-                joinpath(fixture_dir, "1tim.pdb.gz"),
-                joinpath(fixture_dir, "8tim.pdb.gz"),
-                db,
-            )
+            createdb(joinpath(fixture_dir, "1tim.pdb.gz"), db)
             @test isfile(db)
             @test isfile(db * ".index")
         end
+        mktempdir() do dir
+            db = joinpath(dir, "DB")
+            createdb([joinpath(fixture_dir, "1tim.pdb.gz"), joinpath(fixture_dir, "8tim.pdb.gz")], db)
+            @test isfile(db)
+            @test isfile(db * ".index")
+        end
+
+        # search, rbh, cluster, multimercluster, and multimersearch are all
+        # internally implemented as shell-script workflows that re-invoke
+        # `foldseek` as a subprocess (confirmed for search and cluster; the
+        # same pattern is expected to hold for the rest), so — as with the
+        # easy-* commands — a full run isn't portable to assert on here, and
+        # flag validation (which happens before any internal script runs) is
+        # used instead to confirm subcommand routing and positional arg shape.
+        @test_throws "Unrecognized parameter" search("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" rbh("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" cluster("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" multimercluster("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" multimersearch("a", "b", "c", "d"; bad_flag=1)
     end
 end

@@ -76,5 +76,6 @@ macro foldseek_str(s)
 end
 
 include("easy_workflows.jl")
+include("main_workflows.jl")
 
 end

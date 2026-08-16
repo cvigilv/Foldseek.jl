@@ -4,25 +4,27 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-006: easy-workflow-commands
-Added `src/easy_workflows.jl` (included from `src/Foldseek.jl`) with typed functions for the 5 `foldseek -h` "Easy workflows" commands: `easy_search`, `easy_cluster`, `easy_rbh`, `easy_multimercluster`, `easy_multimersearch`. Each takes the command's required positional arguments (query file(s), then target/output paths as appropriate) and forwards everything else via `kwargs...` to CHUNK-003's dispatcher, rather than declaring each of the 60-90+ CLI flags individually.
+CHUNK-007: main-workflow-commands
+Added `src/main_workflows.jl` with typed functions for the 6 `foldseek -h` "Main workflows" commands: `createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`. These operate on Foldseek databases (built by `createdb`) rather than raw structure files — that's the actual distinction between "Easy workflows" and "Main workflows" in `-h`'s own grouping, not just a naming difference.
 
 ## Key decisions made
-- **Generic `kwargs...` passthrough, not individually-declared flags.** Each `easy-*` command has 60-90+ options; hand-declaring them all as Julia keyword arguments would duplicate documentation already in `foldseek <cmd> -h` and drift on every Foldseek version. Positional args (the part with real structure — file counts, ordering) are typed; everything else flows through generically. This is the pattern for every remaining wrapper chunk, not just this one.
-- **Single-string convenience overload for `queryfiles`.** Every command except `easy-rbh` (which takes exactly one query file per its own CLI) has both a `Vector{<:AbstractString}` method (the real implementation) and an `AbstractString` method that wraps a single path in a vector and delegates.
-- **Discovered and worked around an environment limitation, not a package bug**: `easy-*` commands are implemented as embedded shell scripts that re-invoke `foldseek` as a nested subprocess per pipeline stage. On this dev machine that nested invocation fails to load `libomp.dylib` regardless of whether the given paths are valid — the top-level process's library search path doesn't propagate to the nested re-exec. A full successful `easy-*` run isn't something to assert on portably here. Worked around it: CLI flag validation happens in the *top-level* process before any internal script runs, so a deliberately-bad flag reliably tests subcommand routing and positional-arg shape without needing the nested exec to succeed. All 9 new tests use this pattern.
+- Function names map 1:1 to CLI subcommand names, same convention as CHUNK-006's `easy_*` functions.
+- Empirically confirmed (ran them, didn't assume) that `search` and `cluster` hit the same nested-subprocess `libomp.dylib` issue as the `easy-*` commands from CHUNK-006 — they're shell-script workflows too (`structuresearch.sh`, `clustering.sh`). `rbh`, `multimercluster`, `multimersearch` are presumed to be the same pattern (same category, not individually verified) and tested with the same bad-flag strategy.
+- `createdb` is a direct module with no internal re-exec, so it gets real end-to-end tests against the fixtures (both its single-path and vector-of-paths methods), unlike the other five.
+- Flagged, not fixed: `search`, `rbh`, `cluster` are short generic exported names with real `using`-collision risk against other packages. Kept for consistency with the direct-mapping convention; recorded as an Open Question in case the user wants to prefix these before release.
 
 ## State of the codebase
-- Files created or modified: `src/easy_workflows.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (9 new test cases, 21 total), `ANALYSIS_PLAN.md`.
+- Files created or modified: `src/main_workflows.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (folded the old standalone "test fixtures" testset into a new "main-workflow commands" testset with 2 full createdb runs + 5 bad-flag assertions), `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 21/21 pass.
-- Known issues: none in committed code. The libomp/nested-subprocess issue is an environment characteristic, documented in `ANALYSIS_PLAN.md` Working Knowledge and CHUNK-006 Notes, not something fixed or fixable in this package.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 28/28 pass.
+- `test/data/` fixtures: confirmed clean after this session.
+- Known issues: none in committed code.
 
 ## Next chunk
-CHUNK-007: main-workflow-commands
-Typed wrappers for the 6 "Main workflows" commands `foldseek -h` prints: `createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`. Both dependencies (CHUNK-003, CHUNK-004) are complete. Follow CHUNK-006's pattern: typed positional args (check each command's `-h` usage line, don't assume), generic `kwargs...` passthrough for everything else. `createdb` already has proven end-to-end test coverage from CHUNK-004 (it's a direct module, not a shell-script workflow) — the typed wrapper should reuse that same call shape. For the others, check each one's `-h` output for signs of being a shell-script workflow before assuming a full successful run is testable here (see Working Knowledge and CHUNK-006 Notes in the plan for why).
+CHUNK-008: database-and-set-commands
+Typed wrappers for the 4 "Input database creation" / "Unite and intersect databases" commands `foldseek -h` prints: `databases`, `createindex`, `createclusearchdb`, `createsubdb`. Both dependencies (CHUNK-003, CHUNK-007) are complete. Check each command's `-h` usage line for its actual positional-arg shape before assuming it matches a sibling — this has differed within a section twice now (`easy-rbh` in CHUNK-006, and the Easy-vs-Main distinction in CHUNK-007). Also worth checking during CHUNK-008: is `databases` (which lists/downloads databases, likely involving network access) safe to typed-wrap the same way, or does it need different treatment (e.g. no fixture-based test at all, since downloading a real database isn't appropriate for a test suite)?
 
 ## Watch out for
-- Don't assume every "Main workflow" command behaves like `createdb` (single-shot, no nested re-exec) just because it's not prefixed `easy-`. `search`, `cluster`, `multimercluster`, and `multimersearch` may still be multi-stage workflows internally — check before writing a test that assumes a full run will succeed in this environment.
-- Keep using the deliberately-bad-flag test pattern from CHUNK-006 for any command where a full run isn't reliably testable; it's environment-independent because flag validation happens before any internal script dispatch.
-- Positional argument order must come from each command's own `-h` usage line, not from assuming it matches a sibling command in the same section — `easy-rbh` broke that assumption once already (single query file, not variadic, despite sitting in the same "Easy workflows" section as the variadic ones).
+- Don't assume a command in the "Main workflows" or later `-h` sections behaves like `createdb` (direct module) — check empirically (a quick real-fixture run) rather than assuming from category alone, same as this session did for `search`/`cluster`.
+- `test/data/` pollution risk remains real for any manual/ad hoc testing against the fixtures with too few positional args (see CHUNK-005's note in the plan) — always use `mktempdir()` for outputs.
+- If CHUNK-008's `databases` command needs network access to test meaningfully, that's likely out of scope for the committed test suite (which must stay portable/offline per the project's testing conventions) — document that as a manual-verification-only note rather than skipping silently.

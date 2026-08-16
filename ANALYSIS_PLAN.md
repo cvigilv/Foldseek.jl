@@ -77,8 +77,11 @@ No figures/visualization for this plan — the project's outputs are code artifa
 
 ### CHUNK-007: main-workflow-commands
 - **Description**: Typed wrappers for the 6 "Main workflows" commands `foldseek -h` prints: `createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`.
+- **Status**: `complete`
 - **Depends on**: CHUNK-003, CHUNK-004
-- **Notes**:
+- **Notes**: Added `src/main_workflows.jl`. Function names map 1:1 to CLI subcommand names (`createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`), same convention as CHUNK-006. `createdb` is the one variadic-input command here (multiple files/dirs/tar/DB → single output DB, same shape as before); the other five take fixed-count DB-path arguments (they operate on databases `createdb` already built, not raw structure files — that's the actual distinction between "Easy workflows" and "Main workflows" in `-h`'s own grouping). Confirmed empirically (not assumed) that `search` and `cluster` are also internal shell-script workflows that hit the same nested-subprocess `libomp.dylib` issue as CHUNK-006's `easy-*` commands; `rbh`, `multimercluster`, `multimersearch` are presumed to be the same pattern (same "Main workflows" category, not verified individually) and tested the same way — bad-flag assertions rather than full runs. `createdb`, being a direct module with no internal re-exec, gets full end-to-end tests against the real fixtures instead, through both its single-path and vector-of-paths methods.
+
+  **Naming collision risk, flagged not fixed**: `search`, `rbh`, and `cluster` are short, generic exported names with real collision potential if a user does `using Foldseek` alongside another package that also exports `search` or `cluster` (Julia will require qualification, not silently misresolve — but it's friction). Chose to keep the direct 1:1 CLI-name mapping anyway, for consistency with CHUNK-006 and because it's what makes the API predictable to someone who already knows the `foldseek` CLI. Revisit if this becomes an actual reported problem — renaming later is non-breaking at this stage (package not yet released).
 
 ### CHUNK-008: database-and-set-commands
 - **Description**: Typed wrappers for the 4 "Input database creation" / "Unite and intersect databases" commands `foldseek -h` prints: `databases`, `createindex`, `createclusearchdb`, `createsubdb`.
@@ -113,8 +116,10 @@ No figures/visualization for this plan — the project's outputs are code artifa
 - 2026-08-16 CHUNK-004 (test-fixtures) → next: CHUNK-005
 - 2026-08-16 CHUNK-005 (foldseek-str-macro) → next: CHUNK-006
 - 2026-08-16 CHUNK-006 (easy-workflow-commands) → next: CHUNK-007
+- 2026-08-16 CHUNK-007 (main-workflow-commands) → next: CHUNK-008
 
 ## Open Questions
+- Typed wrappers for generic-verb CLI commands (`search`, `cluster`, `rbh` so far — CHUNK-007) are exported under those exact names, with real `using`-collision risk against other packages. Kept for consistency with the direct CLI-name-mapping convention; flagged here in case the user would rather prefix these (e.g. `foldseek_search`) before the package is released. See CHUNK-007 Notes.
 - BioJulia interop (BioSequences.jl, BioSymbols.jl, FASTX.jl, BioAlignments.jl, MIToS.jl) is deliberately out of scope for this plan — planned as a follow-up once the CLI wrapper is solid. Revisit with a fresh `/new-analysis-plan` pass at that point. MIToS.jl (https://github.com/diegozea/MIToS.jl) is a protein sequence/structure analysis toolbox (PDB parsing, MSAs, contact prediction) — a natural fit for Foldseek's structural search output, not a mitochondrial-genome tool as previously misnoted here.
 
 <!-- Resolved 2026-08-16: both prior open questions (whether to wrap Tier-2 internal-pipeline commands; whether to leave taxonomy/multihit/nucleotide commands unwrapped) are superseded by the foldseek"..." macro decision — typed wrappers are scoped to exactly the foldseek -h command list (CHUNK-006–010), everything else goes through CHUNK-005 instead of a case-by-case inclusion/exclusion call. -->
