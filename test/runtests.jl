@@ -29,6 +29,30 @@ using Test
         @test_throws "Input a file.pdb does not exist" foldseek"createdb \"a file.pdb\" out"
     end
 
+    @testset "easy-workflow commands" begin
+        # Foldseek's `easy-*` commands are internally implemented as shell
+        # scripts that re-invoke the `foldseek` binary as a subprocess for
+        # each stage; that nested invocation can fail to find a shared
+        # library depending on the platform's dynamic linker behavior,
+        # regardless of whether the given paths are valid, so a full
+        # successful run isn't a portable thing to assert on here.
+        # Flag validation happens in the same top-level process before any
+        # internal script runs, so a deliberately-bad flag is a reliable,
+        # environment-independent way to confirm each wrapper reaches the CLI
+        # with the right subcommand name and the right positional arg count —
+        # if either were wrong, foldseek would report a path-count error
+        # instead of ever reaching flag validation.
+        @test_throws "Unrecognized parameter" easy_search("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_search(["a", "b"], "c", "d", "e"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_cluster("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_cluster(["a", "b"], "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_rbh("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_multimercluster("a", "b", "c"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_multimercluster(["a", "b"], "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_multimersearch("a", "b", "c", "d"; bad_flag=1)
+        @test_throws "Unrecognized parameter" easy_multimersearch(["a", "b"], "c", "d", "e"; bad_flag=1)
+    end
+
     @testset "test fixtures" begin
         fixture_dir = joinpath(@__DIR__, "data")
         mktempdir() do dir

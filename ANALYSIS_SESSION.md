@@ -4,25 +4,25 @@
 `releasable-package` — Foldseek.jl
 
 ## What was just completed
-CHUNK-005: foldseek-str-macro
-Added `@foldseek_str` to `src/Foldseek.jl`, invoked as `foldseek"easy-search q.pdb t.pdb out.m8 tmp"`. It tokenizes its string with `Base.shell_split` (quote-aware, same tokenizer Julia's backtick literal uses) at macro-expansion time, then splices the resulting `Vector{String}` into a call to `foldseek(::Cmd)`. This is now the universal escape hatch for every `foldseek` command without a typed wrapper.
+CHUNK-006: easy-workflow-commands
+Added `src/easy_workflows.jl` (included from `src/Foldseek.jl`) with typed functions for the 5 `foldseek -h` "Easy workflows" commands: `easy_search`, `easy_cluster`, `easy_rbh`, `easy_multimercluster`, `easy_multimersearch`. Each takes the command's required positional arguments (query file(s), then target/output paths as appropriate) and forwards everything else via `kwargs...` to CHUNK-003's dispatcher, rather than declaring each of the 60-90+ CLI flags individually.
 
 ## Key decisions made
-- The macro does **not** support `$`-interpolation of Julia values — confirmed experimentally that Julia only special-cases `$` for the built-in backtick command syntax, not custom string macros. Documented in the docstring with the recommended alternative (`foldseek(subcommand, args...; kwargs...)` or building a `Cmd` directly).
-- Tokenization is done once at macro-expansion time (not on every call), since the string is a literal known at parse time.
-- Tests avoid needing real fixture paths inside the macro (which would require interpolation) by testing metadata-only commands (`version`, `createdb` with no args) plus a quoting-correctness test that asserts on the specific stderr text a correct vs. incorrect tokenization would produce, rather than inspecting tokens directly.
+- **Generic `kwargs...` passthrough, not individually-declared flags.** Each `easy-*` command has 60-90+ options; hand-declaring them all as Julia keyword arguments would duplicate documentation already in `foldseek <cmd> -h` and drift on every Foldseek version. Positional args (the part with real structure — file counts, ordering) are typed; everything else flows through generically. This is the pattern for every remaining wrapper chunk, not just this one.
+- **Single-string convenience overload for `queryfiles`.** Every command except `easy-rbh` (which takes exactly one query file per its own CLI) has both a `Vector{<:AbstractString}` method (the real implementation) and an `AbstractString` method that wraps a single path in a vector and delegates.
+- **Discovered and worked around an environment limitation, not a package bug**: `easy-*` commands are implemented as embedded shell scripts that re-invoke `foldseek` as a nested subprocess per pipeline stage. On this dev machine that nested invocation fails to load `libomp.dylib` regardless of whether the given paths are valid — the top-level process's library search path doesn't propagate to the nested re-exec. A full successful `easy-*` run isn't something to assert on portably here. Worked around it: CLI flag validation happens in the *top-level* process before any internal script runs, so a deliberately-bad flag reliably tests subcommand routing and positional-arg shape without needing the nested exec to succeed. All 9 new tests use this pattern.
 
 ## State of the codebase
-- Files created or modified: `src/Foldseek.jl` (`@foldseek_str` macro), `test/runtests.jl` (3 new test cases, 12 total), `ANALYSIS_PLAN.md`.
+- Files created or modified: `src/easy_workflows.jl` (new), `src/Foldseek.jl` (added `include`), `test/runtests.jl` (9 new test cases, 21 total), `ANALYSIS_PLAN.md`.
 - Package loads cleanly: yes.
-- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 12/12 pass.
-- `test/data/` fixtures: confirmed clean (`git status --short test/data/` empty) after this session.
-- Known issues: none in committed code. See Watch out for below re: a testing pitfall encountered (and recovered from) this session.
+- Test suite passes: yes — `julia --project=. -e 'using Pkg; Pkg.test()'`, 21/21 pass.
+- Known issues: none in committed code. The libomp/nested-subprocess issue is an environment characteristic, documented in `ANALYSIS_PLAN.md` Working Knowledge and CHUNK-006 Notes, not something fixed or fixable in this package.
 
 ## Next chunk
-CHUNK-006: easy-workflow-commands
-Typed wrappers for the 5 "Easy workflows" commands `foldseek -h` prints: `easy-search`, `easy-cluster`, `easy-rbh`, `easy-multimercluster`, `easy-multimersearch`. Both dependencies (CHUNK-003, CHUNK-004) are complete. Use `CLI_NOTES.md` for each command's exact positional-arg order and flags (run `foldseek <cmd> -h` directly rather than trusting memory — flag lists are long). Use `foldseek(subcommand, args...; kwargs...)` from CHUNK-003 as the implementation backend for each typed function; follow the `nothing`-omits-flag convention for optional keyword arguments.
+CHUNK-007: main-workflow-commands
+Typed wrappers for the 6 "Main workflows" commands `foldseek -h` prints: `createdb`, `search`, `rbh`, `cluster`, `multimercluster`, `multimersearch`. Both dependencies (CHUNK-003, CHUNK-004) are complete. Follow CHUNK-006's pattern: typed positional args (check each command's `-h` usage line, don't assume), generic `kwargs...` passthrough for everything else. `createdb` already has proven end-to-end test coverage from CHUNK-004 (it's a direct module, not a shell-script workflow) — the typed wrapper should reuse that same call shape. For the others, check each one's `-h` output for signs of being a shell-script workflow before assuming a full successful run is testable here (see Working Knowledge and CHUNK-006 Notes in the plan for why).
 
 ## Watch out for
-- **Never run a `createdb`-style command against `test/data/*.gz` without an explicit, separate output path outside `test/data/`.** With too few positional args, `foldseek` silently treats the last input path as the output DB prefix and overwrites it in place — this happened once during manual testing this session (recovered via `git checkout -- test/data/8tim.pdb.gz` + deleting the generated sidecar files; nothing landed in a commit). CHUNK-004's committed test already does this correctly by writing into `mktempdir()`; keep that pattern for every future test/example that touches the fixtures.
-- Custom Julia string macros never get `$`-interpolation — don't try to make `foldseek"$var ..."` work; it silently won't do what a user expects (the `$` stays literal text).
+- Don't assume every "Main workflow" command behaves like `createdb` (single-shot, no nested re-exec) just because it's not prefixed `easy-`. `search`, `cluster`, `multimercluster`, and `multimersearch` may still be multi-stage workflows internally — check before writing a test that assumes a full run will succeed in this environment.
+- Keep using the deliberately-bad-flag test pattern from CHUNK-006 for any command where a full run isn't reliably testable; it's environment-independent because flag validation happens before any internal script dispatch.
+- Positional argument order must come from each command's own `-h` usage line, not from assuming it matches a sibling command in the same section — `easy-rbh` broke that assumption once already (single query file, not variadic, despite sitting in the same "Easy workflows" section as the variadic ones).

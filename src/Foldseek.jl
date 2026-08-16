@@ -75,4 +75,6 @@ macro foldseek_str(s)
     return :(foldseek(Cmd($(Base.shell_split(s)))))
 end
 
+include("easy_workflows.jl")
+
 end
