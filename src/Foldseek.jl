@@ -2,7 +2,7 @@ module Foldseek
 
 using Foldseek_jll: Foldseek_jll
 
-export foldseek
+export foldseek, @foldseek_str
 
 """
     foldseek(args::Cmd)
@@ -50,5 +50,29 @@ end
 
 flag_string(value::Bool) = value ? "1" : "0"
 flag_string(value) = string(value)
+
+"""
+    foldseek"subcommand args..."
+
+Run a `foldseek` command written exactly as it would be on the command line,
+e.g. `foldseek"easy-search query.pdb target.pdb result.m8 tmp"`. The string is
+tokenized the way a shell would (quoted substrings containing spaces stay
+together), via the same tokenizer Julia's own `` `cmd` `` literal uses
+internally, then run through [`foldseek`](@ref)`(::Cmd)`.
+
+This is the escape hatch for the ~150 `foldseek` commands that don't have a
+typed Julia wrapper — every hidden foldseek command and everything inherited
+from mmseqs2 (see `CLI_NOTES.md`) is still reachable this way.
+
+Note: unlike `` `cmd` `` literals, this macro does **not** support
+`\$`-interpolation of Julia values — Julia only special-cases interpolation
+for the built-in backtick command syntax, not custom string macros. Build the
+command with string interpolation first if needed, e.g.
+`` foldseek(Cmd(["easy-search", queryfile, targetfile, "result.m8", "tmp"])) ``
+or the [`foldseek`](@ref)`(subcommand, args...; kwargs...)` method.
+"""
+macro foldseek_str(s)
+    return :(foldseek(Cmd($(Base.shell_split(s)))))
+end
 
 end

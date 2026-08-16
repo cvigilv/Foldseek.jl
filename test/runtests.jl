@@ -19,6 +19,16 @@ using Test
         @test foldseek("version"; verbosity=nothing) isa Base.Process
     end
 
+    @testset "@foldseek_str" begin
+        @test foldseek"version" isa Base.Process
+        @test_throws "Not enough input paths" foldseek"createdb"
+
+        # A quoted, space-containing argument must survive as one token, not
+        # be split on the space — assert on the resulting error text, which
+        # differs depending on whether tokenization was correct.
+        @test_throws "Input a file.pdb does not exist" foldseek"createdb \"a file.pdb\" out"
+    end
+
     @testset "test fixtures" begin
         fixture_dir = joinpath(@__DIR__, "data")
         mktempdir() do dir
